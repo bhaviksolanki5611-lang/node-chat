@@ -1,0 +1,33 @@
+rules_version = '2';
+// Clients may only READ (real-time listeners) chats they belong to.
+// All writes go through the API (Admin SDK bypasses these rules).
+// chats/{chatId}.memberIds is mirrored from MySQL by the API.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isMember(chatId) {
+      return request.auth != null
+        && int(request.auth.uid) in get(/databases/$(database)/documents/chats/$(chatId)).data.memberIds;
+    }
+
+    match /chats/{chatId} {
+      allow read: if isMember(chatId);
+      allow write: if false;
+
+      match /messages/{messageId} {
+        allow read: if isMember(chatId);
+        allow write: if false;
+
+        match /readReceipts/{uid} {
+          allow read: if isMember(chatId);
+          allow write: if false;
+        }
+      }
+
+      match /members/{uid} {
+        allow read: if isMember(chatId);
+        allow write: if false;
+      }
+    }
+  }
+}
